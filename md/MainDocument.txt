@@ -1,0 +1,536 @@
+Abstract—This paper investigates an efﬁciency model predic- tive  control  (MPC)  strategy  aimed  at  ensuring  rapid  response and stable current regulation in wireless power transfer (WPT) system with considering hard constraints. The current ﬂuctuation caused by the load variation of WPT is an inherent problem, and the  goal of the MPC  controller is to maintain a constant current  (CC)  of  DC-DC  converter  on  the  receiver  side,  and achieve  fast  and  safe  charging  against  when  load  resistance changes. In order to achieve this goal, a tracking performance function that utilizes a simpliﬁed linear prediction model on DC- DC converter is ﬁrst considered, which allows a low computation burden. Furthermore, the constraint limitations on duty cycle, current and voltage are also incorporated for circuit safety so that the controller optimizes the duty cycle under the consideration of constraint handling. Finally, a receding horizon optimization problem  is  formulated  for  optimal  current  tracking,  and  the global optimal solution of duty cycle can be obtained from the resulting quadratic program (QP) problem. This approach is able to stabilize the output CC of WPT system with a rapid response under load resistance variation conditions, and also provides good steady-state  performance  and  dynamic  regulation  capabilities. The experimental results are provided to demonstrate the effec- tiveness of the designed MPC method for achieving satisfactory set-point tracking performance.
+Index Terms—Model predictive control (MPC), current regula- tion, wireless power transfer (WPT), DC-DC converter, set-point tracking.
+
+I.  INTRODUCTION
+ITH the automotive industry development processing in transition to more efﬁcient and less polluting, the
+growth rate of various electric vehicles is exponentially in- creasing. Battery charging has now become  a core issue in the  industry  circle.  Wireless power  transfer  (WPT)  system, which refers to a kind of energy transmission from the power supply to the load without direct electrical contact, is gaining an increasing attention in commercial market. WPT  system exhibits greater portability and ﬂexibility, eliminating the need for a direct connection between the power source and electrical devices. This allows electrical equipment to be moved more freely  without  being  constrained  by  cables,  enhancing  the stability of the connection. However, the broader application of WPT  system  is limited by  several  limitations, including
+This  research  was  partially  supported  by  the  National  Natural  Science Foundation  of  China  under  grant  62303082.  (Corresponding  author:  Jun Wang)
+The authors are with the School of Automation, Chongqing University of Posts and Telecommunications, Chongqing, 400065, P.R. China, and also with Institute of Industrial Internet, Chongqing University of Posts and Telecommu- nications, Chongqing, 401122, P.R. China. (e-mail: junwang@cqupt.edu.cn)
+
+
+slow transient performance and inﬂexibilityin multi-objective control. Concerning these problems, the technicians contribute to  investigate  various  methods  from  multi-perspectives  in system modeling, control and optimization,  see  [1]–[5]  and the reference and therein.
+WPT system typically operates on the principles of elec- tromagnetic induction or magnetic resonance coupling. The basic components of a WPT system include a transmitter coil, a receiver coil, and associated power electronics for energy conversion and control. The transmitting coil generates a high- frequency alternating magnetic ﬁeld through high-frequency alternating current, and the receiving coil receives the magnetic ﬁeld and converts it into electrical energy, thus transferring the electrical energy to the load. Signiﬁcant research efforts have been directed toward addressing the challenges for WPT system  in  optimization  and  control.  These  efforts  can  be broadly  categorized  into  different  areas:  coil  and  topology designs, power electronics and control strategies. For example, a two-stage strategy for unmanned aerial vehicles WPT system that  considers  a  supplying  power  to  energy-limited  sensor nodes was investigated in  [6]. In  [7],  a reconﬁgurable half- bridge compensation topology for WPT system is studied to achieve  constant  current  and  voltage  outputs.  These  efforts mainly focus on optimizing coil geometry and conﬁgurations to enhance efﬁciency and power transfer capability. In practice, WPT  system  often  suffers  from  efﬁciency  degradation  due to  factors  such  as  coil  misalignment,   load  variation,  and environmental interference.
+In response to above challenges, another signiﬁcant areas of progress  in  WPT  system  is  the  development  of  various control strategies to enhance efﬁciency and robustness from different perspectives. Jou et al. proposed a bidirectional DC- DC WPT system using inductor-capacitor-capacitor-capacitor (LCC-C) resonance compensation network in  [8], where the controller was designed by a PI controller. In [9],the controller was designed based on the measured active power and reactive power at the resonant network of bidirectional WPT system to regulate the power ﬂow in both directions. In order to improve the robustness of WPT system with coil misalignment, Xia et al. designed a μ-controller in [10] based on structured singular value to reduce transmission power ﬂuctuations. In fact, most works in the existing literature adopt classical PID controller in WPT system due to its ﬂexibility to regulate system output voltage, current, and power. However, the performance of a PID  controller  depends  heavily  on  choosing  proper  param- eters, which inevitably leads to a decrease in the controller
+
+
+
+robustness. In order to overcome this drawback, some revelent papers have been reported to address this issue. For example, a adaptive frequency tracking control method was proposed for  WPT   system  in   [11]  to  ensure  the  resonant   state   of system based on the fuzzy PI controller. Liu et al. considered the  control  problem  of  the  rapid  variation  of  coil  mutual inductance in [12], where a PID controller was designed for DC-DC converter at the receive side to improve the perfor- mance  against  changing  coupling  coefﬁcient.  Despite  these improvements of PID method, the WPT  system in practice faces more challenges such as system nonlinearity and load variation. These challenges severely limit their applications to cope with more complicated control requirements. Therefore, in  order  to  solve  these  problems,  how  to  design  effective advanced control strategies such as sliding mode control [13], internal model control [14], and robust control [15] for WPT system have become a focal point of intense research to be continuously pursued.
+In the existing advanced control method of WPT system, model predictive control (MPC), as a control algorithm orig- inated  in  industrial  circle,  has  been  recognized  a  potential approach  for  many  complex  mutivariable  systems  since  it can  precisely  regulate  the  system  based  on  a  mathematical model, thereby improving the system’s dynamic response. In the literature, it has been reported that MPC method on WPT system is superior to traditional methods since it is able to provide key beneﬁts such as good robustness, multi-objective optimization, rapid convergence in ﬂuctuating environments, and  less  ripple  in  steady-state  operation.  MPC  operates  by predicting future state trajectories in the discrete domain and computing an optimal control action for the immediate time step,  which  is  subsequently  implemented  by  the  controller. Many  scholars have investigated  various MPC  algorithm to WPT system and reported good results, see the reference and therein [16]–[18]. The existing MPC methods for WPT system can  be  divided  into  three  categories:  the  transmitting  side control [19], the receiving side control [20], [21], and the dual- side control [22]. In [19], a novel frequency selection MPC al- gorithm was proposed to determine the optimal initial switch- ing frequency of the transmitting side inverter. The optimal initial frequency generally ensures the zero-voltage switching (ZVS)  operation  of the  inverter.  However,  the  algorithm  is susceptible to notching effects and current distortion induced by dead time. Additionally, it fails to maintain soft switching in WPT system under light-load condition. Chen et al.  [22] designed  a  control   strategy  for  the  dynamic  improvement and  efﬁciency  optimization  of  dual-side  inductor-capacitor- inductor (LCL) compensated WPT system, where the inverter at the transmitting side was controlled by the perturbation and observation method for maximum energy efﬁciency tracking and the rectiﬁer at the receiver-side was  stabilized  a  ﬁnite- control-set  MPC  to  achieve  a  fast  output  voltage  response. The authors in [23] introduced an offset-free composite MPC strategy for the receiver-side buck converter, incorporating a sliding mode observer to estimate future tracking errors and address model uncertainties. It can be seen that MPC has been proved an effective method for WPT system and generated a good basis in these literature, however the designed controllers
+
+
+ignore the physical constraints in the  optimization problem such as duty cycle, current, and voltage, which is adverse to its applications in practice. This motivates us to consider a constrained MPC controller for WPT system.
+During  the  actual  operation  of  the  WPT  system,  the system  parameters  may  also  ﬂuctuate  due  to  the  model- ing  mismatch,  external  disturbance,  load  mutation,  power supply  voltage  ﬂuctuation  and  coupling  coefﬁcient  change. For  the  objective  of  achieving  the  desired  reference  track- ing,   exact   output   regulation   is   the   crucial   performance for   the   controller   in   WPT   system.   The   typical   meth- ods   consists   of   considering   different   compensation   net- works such as inductor-capacitor-capacitor-inductor-capacitor- capacitor (LCC-LCC) and inductor-capacitor-capacitor-series (LCC-S)  topology,  and  adding  a  DC-DC  converter  on  the transmitting  and  receiving  sides.  For  instance,  in  order  to achieve  constant  current  (CC)  charging,  a  reconﬁgurable topology that combines LCC-LCC and LCC-S compensation networks was designed in [24], but it relays on a bulky circuit design implementation. Meanwhile, the topology parameters severely constrain the design ﬂexibility of the charge current. Once the circuit parameters  are  ﬁxed, the  output current is vulnerable  for  the  variations  of  mutual  inductance  of  the coils or load resistance. These facts requires that the designed controller should have a rapid ability to regulate the dynamic system against ﬂuctuation of output current, thus the current regulation is the another concern of our article. Considering the fast response feature of MPC, a few works on DC-DC converter have been conducted in order to reduce the adverse effect of the rapid ﬂuctuations on the receiver-side of WPT system [21], [25]–[29]. In [26], the authors investigated the im- plementation problem of long-horizon ﬁnite-control-set MPC on an FPGA. Zhou et al. [21] considered the communication delay problem and designed a time-delay compensation MPC strategy  for  DC-DC  converter.  On  the  other  hand,  in  the literature, some MPC methods have been extensively studied regarding the optimal control issue for DC-DC converter. Mao et  al.  [30]  investigated  a  digital  average  current  MPC  with load  current  compensation  for  multiphase  interleaved  DC- DC converter to improve the load transient perforamnce. In [27],  a  robust  MPC  strategy  for  DC-DC  converter  in  DC microgrids was investigated to ensure the stable charging of constant  power  load.  In  these  work,  the  computation  time will grow exponentially with the length of the prediction and control horizons. In order to reduce the computation burden, a variable  self-tuning horizon  mechanism for MPC method of DC-DC  converter  was  studied  in  [31].  For  the  sake  of eliminating steady-state error, an offset-free composite MPC strategy  for  DC-DC  buck  converter  was  proposed  in  [32]. However, these two approaches are only effective for constant power loads. Recently in  [33], a noise tolerance method for DC-DC converters based on continuous control set MPC was designed.  In  these  works,  the  controllers  are  vulnerable to current distortion being caused by a load variation, this limits the application of the designed MPC methods. Moreover, the physical constraints of WPT system are ignored so that the controllers are incapable of handling the physical operation constraints. However, one of the vital features of MPC is its
+
+
+
+ability to handling various system constraints in solving the optimization problem. Therefore, an efﬁcient MPC controller that  takes  the  circuit  constraint  condition  for  WPT  system remains an unexplored and practical topic, this further motivate us to investigate an MPC controller with a low computation burden that considers the constraint condition of WPT system, enabling the real-time implementation efﬁciency.
+In this paper, in order to address the aforementioned moti- vation, our main goal is to investigate a constrained MPC for current regulation of WPT system, which targets to provide fast response and stable output current by tracking the desired reference  value   for  a  load  variation   condition.  The  main novelties of this paper are stated as follows.
+1)  a linear discrete-time model of DC-DC converter on the receiver-side in the WPT system that utilizes state-space current averaging method is ﬁrst established for controller design.  Based  on  this  model,  the  implementation  of maintaining the constant current by controlling the DC- DC converter rather than the inverter is studied so that the power regulation for WPT system is more ﬂexible from the control view;
+2)  a tracking quadratic performance function is designed by minimizing the tracking error of the load current and duty cycle. The optimal control input sequence of duty cycle can be obtained by minimizing the cost function based on the future system state and output predictions. Mean- while,  constraint  limitations  on  the  output  current  and duty cycle are imposed in the optimal control problem formulation so that they are inherently satisﬁed at each implementation of MPC controller to ensure the circuit safety operation;
+3)  an  efﬁciency receding horizon optimization problem is formulated for achieve optimal current tracking of DC- DC converter, which is helpful to reduce the controller computational  burden.   The  optimal  control  input  se- quence of duty cycle is directly obtained from the solu- tion of a quadratic program (QP) problem, which could ensure optimal system transient performance such as fast response time and less oscillations.
+The rest organization of this paper is addressed as follows. Section II shows the working principle, compensation topol- ogy, and control model of DC-DC converter for WPT system. Section III gives the designed MPC strategy. In Section IV, the validity of the designed MPC controller is demonstrated by experimental tests. Section V makes a conclusion for this paper.
+
+II.  PROBLEM FORMULATION
+A.  Control Principle of WPT System
+In this paper, we mainly consider a magnetic coupling WPT system,  the  circuit  topology  is  shown  in  Fig.  1.  It  mainly consists of a coupling coil, a rectiﬁer, a DC-DC converter, and a load. The transmitting side converts the input DC power into high-frequency AC power through a high-frequency inverter device,  while  the receiver-side  converts  the  AC power into DC output through a high-frequency rectiﬁer. The coupling part is based on the magnetic ﬁeld coupling wireless power
+
+
+
+                    Transmitting side
+
+
++
+
+
+
+Fig. 1: Schematic circuit diagram of WPTs.
+
+transmission method. The high-frequency  output current by the inverter generates a high-frequency magnetic ﬁeld through the transmitting coil, and induces high-frequency current in the receiving coil through electromagnetic induction. EDC  is the DC power supply; S1 , S2 , ..., S4  are MOSFETs that combines into  the  full-bridge  circuit;  Lr    is  the  series  compensation inductors of transmitting side, and Rr  is its internal resistance; VD1 , VD2 , ..., VD4 are rectiﬁer diodes; Lp  and Ls  are the self inductance of the coupling coils on the transmitting and receiv- ing sides with internal resistances Rp  and Rs , respectively; Cp  and Cs  are the compensation capacitors of coils Lp  and Ls , respectively; Cf  is a DC ﬁlter capacitor, and M12  stands for the mutual inductance between the transmitting and receiving coils.  U1    and  Up    are  the  equivalent  voltages  of  inverter and transmitting coil  at transmitter-side, respectively. When transmitting  and  receiving  sides  are  required  in  a resonant state, therefore the compensation circuit capacitors Cp  and Cs  should satisfy the following equation
+ω = 2πfT  =      1      =     1     
+“LrCp       pLsCs ,
+where  ωr   is  the  resonant  frequency  formed  by  the  com- pensation network and coil, and fT  is the inverter working frequency.  According  to  the  ﬁrst  harmonic  approximation, when the phase-shifting  angle is  zero, the voltage value  of U1  is determined by
+2p2EDC
+U1  =
+π
+B.  LCC-S Compensation Network
+In the magnetic  coupler,  the  leakage  inductance between transmitter and receiver coils will result in high reactive power and  low  transfer  efﬁciency  at  operation.  Different  resonant compensation network can compensate for the leakage induc- tance of the coils, increase the transmission distance, and ﬁlter
+
+I
+p
+
+Ro
+Rs
+
+Fig. 2: The equivalent circuit diagram of LCC-S compensated network for WPT system.
+
+
+
+out harmonics  introduced by the  inverter  and  rectiﬁer.  The LCC-S compensation network is utilized in this paper, where the  LCC  compensation  network  and  a  series  compensation network  are  utilized  on  the  transmitting  side  and  receiving side, respectively. The DC-DC converter is utilized between the rectiﬁer and the load. It can regulate the power ﬂowing into the load to maintain the stability of output current and operation frequency during load and air gap changes, ensuring the reliability and efﬁciency of the system, this is favorable to the tracking control of WPT system with a fast response.
+The equivalent circuit of (1) that considers parasitic internal resistance parameters is  shown  in  Fig.  2.  According  to  the KVL theorem, the following equation can be established
+
+l13 =  lr
+4 0p5      4 0		1     
+jωCp
+jωLp1 + Rp
+jωM12	jω 12  3 lr 3	
+(2)
+where M12  =  is the coil mutual inductance with α being the coupling coefﬁcient of two coils; Ro is the equivalent resistance including the effects of the rectiﬁer ﬁlter, and its relationship with the load resistance RL  being determined by Ro  = RL .
+When the transmitting and receiving sides are in a resonant working state, and the resonant frequency equals to the work- ing frequency of the inverter. Ignoring the internal resistances of (2), then the analytical solution to current can be expressed
+as                                          .
+  
+Therefore,  ignoring  the  internal  resistances  Rr ,  Rs ,  the output  power  and  output  voltage  of  LCC-S  compensation
+network are
+M12
+LpRo
+o  = 
+It  can be  seen  that  equation  (4)  imply  that  the  system  has constant  voltage  output  characteristics,  and  its  output level can  be  adjusted  by  varying  Lp    according  to  operational requirements.
+
+C.  Control-Oriented Modelling
+As discussed in the above subsection, it has demonstrated that the LCC resonant topology on the transmitter side can provide CC characteristic to the transmitter coil while inducing constant  voltage  (CV)  in  the  receiver  coil.  Through  series resonance  formed  by  the  receiving  coil  and  compensation capacitor, the load achieves stable CC output characteristics. However,  this  performance  is  only  guaranteed  under  ideal alignment  condition  during  compensation parameter  design. Power  transmission  ﬂuctuations  are  inevitable.  Considering
+
+
+this problem,  an  effective  approach  is  to  stabilize  the  ﬂuc- tuations and regulae output by applying a DC-DC converter at the transmitting or receiving  side. The key merit of this output regulation control method is of wide power regulation range, reliable control, and high control accuracy.
+Considering the typical high-order nonlinear feature of the mathematical model of the LCC-S WPT system, the system exhibits complex dynamic behavior, most notably in its mul- tiple operating modes. In the considered topology, the output current has CC property, as shown in the following Fig. 3. The ON and OFF states of the switching transistor are governed by the drive pulses generated by the control circuit.
+When the circuit reaches steady-state, the inductor current will inevitably repeat periodically, and the increase in inductor current  during the  conduction period  of the  switching  tube equals to the decrease in current during the turn off period, that is,
+
+Uf  - UL	根 ton  =  根 toff,	(5)
+
+
+(6)
+L
+which can be rewritten as		
+UL  = Uf  根  = Uf  根 d	
+It indicates that changing the output voltage can be achieved by adjusting the duty cycle of buck circuit if the input voltage is constant.
+Id
+Ld
+Uf            VDL                                   CL               RL
+	
+Id
+Ld
+Uf
+
+	
+(a)                                                    (b)
+Fig. 3: The equivalent circuit diagram of buck for switch (a) ON and (b) OFF mode.
+
+The equivalent circuit of the buck converter is shown in Fig. 3, where the status of IGBT (ON or OFF) will determine the power ﬂowing into the load. When the IGBT is ON, inductor is connected to input voltage, this leads to the increase of Id and capacitor performs energy supplying to load. Assume that the input voltage is constant during the two switching period Ts. Therefore, according to Kirchhoff law and the equivalent circuit of converter, the mathematical modeling of converter during ON state is constructed as follows:
+
+{	CL LL	dUL
+dt
+dId
+dt	= Id -  ,
+= Uf  - UL ,	(7)
+When the IGBT is OFF and Id   >  0,  the  energy  stored  in the inductance is transferred to the load RL , resulting in the
+
+
+
+decrease  of Id   and  capacitor  performs  energy  supplying  to load. Therefore, according to Kirchhoff law and the equivalent circuit of converter, the mathematical modeling of converter during OFF state is constructed as follows:
+= Id —
+= — UL ,
+where CL  is ﬁltering capacitor. From the above analysis, it can be seen that the complete model describes the two modes of operation of the DC-DC converter for continuous conduction mode (CCM).
+
+III.  MPC STRATEGY
+In the following, the formulation of a constrained tracking control MPC strategy for WPT system is shown, mainly in- cluding buck model linearization, controller design, objective function, constraint handling, and optimization problem.
+
+A.  Linearization of DC-DC Converter
+For   (7)   and   (8),   choose  the   state   variable   x(t)     = [IL (t) UL (t)]T . Consider the duty cycled(k) for the switched behavior of DC-DC converter dynamic over the k-th switching period Ts , the continuous-time state equations for two switch states (ON or OFF) are
+{   ,,,+ B1,cUf ,
+t 2 [kTs , (k + d(k))Ts )                            (9)
+{   ,, B2,cUf ,
+t 2 [(k + d(k))Ts , (k + 1)Ts )                  (10)
+where
+A1,c  = A2,c  =  [      ——RL ] ,
+B1,c  =  ,  B2,c  = [] ,
+C1,c  = C2,c  = [0     .
+Following from (9) and (10), the converter always works in these two states. Suppose that the converter is always either in mode (9) or (10) during each period k, that is, d(k) = 1; otherwise,  d(k)  =  0. Take  the  sampling  time  the  same as the converter switching period Ts , and apply the state-space current  averaging method, the  discrete-time model  of WPT system cascaded with a receiver-side buck can be described as follows:
+{ )+=1((k) + B、Uf ,
+where A = I + A1,cTs , B、= B1,cd(k)Ts , and ; I is the identity matrix of appropriate dimension. Since the constant current source characteristic of LCC network output current, Uf  can be seen as a constant, and the duty cycle d(k)
+
+
+is considered as the control input u(k). Correspondingly, (11) can be rewritten as
+{ )+=1((k) + Bu(k),
+where B = B1,cTsUf . In this regard, the linear control model of  DC-DC  converter  is  obtained.  For  the  considered  buck model, the duty cycle d(k) can be adjusted by a controller so that the load current IL  can accurately follow its reference.
+
+
+B.  Prediction Model and Constraint Setting
+In this paper, the state variables UL  and IL  are measurable, i.e., x(kjk)  = x(k). Based on the model (12), one has the following predictions states
+
+x(k + 1jk) =Ax(kjk) + Bu(kjk)
+x(k + 2jk) =Ax(k + 1jk) + Bu(k + 1jk)
+=A2 x(kjk) + AB(kjk) + Bu(k + 1jk)
+.
+.
+.
+(13)
+x(k + Np jk) =Ax(k + P — 1jk) + Bu(k + Np — 1jk) =ANpx(kjk) + ANp -1 Bu(kjk) + · · ·
+i=0
++   X   AiBu(k + Nc — 1jk)
+Np -Nc
+From (12) and (13), the state and output
+written as follows
+
+    
+.
+.
+x(k +.Np jk)	
+=	   
+.
+Ap 	
+x(kjk)+
+
+B
+AB
+.
+.
+ANp.-1 B	0
+B
+
+ANp -2 B	· · ·
+· · ·
+.
+.
+.
+.
+.
+· · ·   P0-Nc
+u(kjk)
+u(k + 1jk)
+(14)
+.
+u(k + c  — 1jk)
+
+    
+.
+.
+y(k +.Np jk)	
+=
+.
+.
+ 	0
+C
+.
+.
+.
+0	· · ·           
+.                .
+.
+.      .                .
+      x(k +.Np jk)	
+
+.
+
+(15)
+
+where Np  and Nc  denote the prediction horizon and control horizon, respectively. Based on the state predictions shown in
+
+
+
+(14), the output predictions can be further formulated as
+
+    
+=
+.
+.
+y(k +.Np jk)
+CB
+CAB
+.                   .
+.                   .
+.                   .
+CAP -1 B    CANp -2 B
+    u((j k)    
+X               .
+.
+u(k + c  — 1jk)
+Denoting
+CB
+CAB
+G =
+.
+.	
+
+
+
+· · ·
+· · ·
+.
+.
+.
+.
+.
+     CANp -Nc B
+
+.
+CNp 
+
+
+.
+.
+,
+.
+.
+CANp -1 B   CANp -2 B          CANp -Nc B
+                                               
+H =        .       , Y (k + ijk) =             .            ,
+.                                           .
+CNp                                                         y(k +.Np jk)
+    u((j k)    
+U (k + ijk) =                .               ,
+.
+u(k + c  — 1jk)
+Z(k + ijk) = [  ] ,
+then (16) can be expressed as follows:
+[I    — G] Z(k + ijk) = Hx(kjk),             (17)
+where x(kjk) is the measured value at time k. Equation (17) is imposed as a constraint in the receding-horizon optimization problem.
+One outstanding merit of MPC is its ability to optimize the control input by considering various constraints in solving op- timization problem, this is also more practical for applications in WPT system. In order to guarantee the effective working, duty cycle limit for IGBT and current limit of inductor for compensation networks should be imposed to protect circuit safety.  The  control  of  DC-DC  converter  has  to  satisfy the following hard constraints:
+umin  三 u(k + ijk) 三 umax , i = 1, 2,  	 , Np                     (18)
+ymin  三 y(k + ijk) 三 ymax , j = 0, 1,  	 , Nc  — 1        (19)
+where (18) and (19) represent constraint limitation on the duty cycle d(k) and for model (12). umin , ymin  are the lower bound of manipulated variable and controlled variable, and umax , ymax are the upper bound of manipulated variable and controlled variable.  Hard  constraints  refer  to  the  limitation  conditions that can not be violated in the optimization.
+
+
+C.  Dynamic Control and Quadratic Optimization Problem
+
+The principle of MPC is to optimize the sequence of manip- ulated variable d(k) computed for time indices k to k+Nc , and only the ﬁrst sample of this sequence is applied as the current control signal and repeated at the next sampling instant. For the compensation network, the output voltage is affected by load change, this is unfavorable to maintain a high working efﬁciency  to  complete  the  charging  process.  Therefore,  the objective of the DC-DC converter is to accurately track its current  reference  as  well  as  maintaining  optimal  transient performance, even under signiﬁcant load variation.
+In order to minimize the output tracking current error and obtain the best response of the system within a fast adjustment time, the cost function in this paper is chosen to penalize the errors of output current IL  and duty cycled between their de- sired steady-state tracking values, regarding of the ﬂuctuation caused by the mutual inductance M12  between transmitter side and receiver side or load resistance RL  suddenly variation at receiver side. The cost function is formally expressed in the following form:
+
+Np
+J (k) = XIy(k + iji) — yssI(i)+
+i=1
+Nc -1
+X  Iu(k + jjk) — uss I(j)
+j=0
+
+where Q(i) ≥ 0 and R(j) > 0 are the penalty matrices on output current and duty cycle for DC-DC converter; yss  and uss  are the tracking reference values at time k. In (20), the ﬁrst term minimizes the error between the predicted output and the tracking set-point value, while the second term applies a penalty on the control sequence u(k + jjk). For (20), there are  several basic design guidelines to determine the control performance  of  the  system,  such  as  the  norm  choice,  the control cost penalty, and the length of prediction horizon, etc. This means that the controller can make a trade-off in these factors for achieving different control performance.
+With the prediction model (17), control objective function (20) and constraint conditions (18)-(19), the state-space MPC tracking problem formulation for DC-DC converter of WPT system is shown as follows:
+
+min            J (k)
+y(k+ijk),u(k+jjk)
+x(k + i + 1jk) = Ax(k + ijk) + Bu(k + jjk), i = 0, 1, 2, ..., Np  — 1
+y(k + ijk) = Cx(k + ijk),  i = 0, 1, 2, ..., Np
+x(kjk) = x(k),
+y(k + Np jk) = yss ,
+(18),  (19)
+(21)
+
+
+
+Letting
+Ys  = [yss     yss      · · ·   yss]根Np  ,
+Us  = [uss     uss      · · ·   uss]根Nc  ,
+Xss  = [Ys      Us] ,
+y = [y(kjk)
+u = [u(kjk)
+z = [y    u]T ,
+zmin  = [ymin
+zmax  = [ymax
+Q(1)
+0
+G = 2
+.
+· · ·        0        R(1)    · · ·        0
+.
+.
+  
+h = — GXss ,
+then the dynamic control problem (21) can be described as the following standard quadratic optimization (QP) problem
+n  J(k) = z TGz + hTz
+s.t.  {   —  z (kjk),                  (22)
+where G is the Hessian matrix, x(kjk) is the measured value at time k. Therefore, the objective function and the constraints are quadratic functions with respect to the decision variables z. This is a standard quadratic programming (QP) problem, which  can  be reliably  and  efﬁciently  solved  using  existing algorithms  such  as  the  active-set  method  and  interior-point methods. In this paper, the active-set algorithm is utilized.
+The receding-horizon optimization requires only implement the ﬁrst control move of optimized control sequence u, then the real-time implemented control move can be written as
+
+dopt (k) =   Inu
+
+In  order  to  regulate  and  achieve  CC  tracking  of  DC-DC converter,  the  MPC  controller  optimizes  the  duty  cycle  by solving a QP problem, under the consideration of constraint limitations.
+
+IV.  EXPERIMENTAL VALIDATION
+In this section, experiments are performed in order to verify the  effectiveness  of  the  proposed   method  for  the   current regulation problem,  mainly  including  dynamic  performance and steady-state performance for mutual inductance and load variation. More details regarding the conﬁguration and exper- imental results are shown in the following ﬁve subsections.
+
+
+A.  Veriﬁcation Platform Setup
+In Fig. 4, the experimental prototype for verifying the pro- posed MPC in WPT system is shown. The platform contains: 1) the full-bridge rectiﬁer; 2) transmitter-side compensation network; 3) transmitting and receiving coils; 4) receiver-side compensation  network;  5)  oscilloscope;  6)  data  acquisition (DAQ) card; 7) DC-DC converter; 8) current probe; 9) pro- grammable electronic load; 10) laptop; 11) DC source. In this prototype, the inverter working frequency  fT   and  the  buck converter’s switching frequency are both set to 100 kHz. The selection of the  size of the transmitting and receiving coils is  20x20cm2 .  The  main  parameter  conﬁguration  of  WPT system  in  this  paper  is  shown  in  Table   1.  The  controlled variables of voltage and current are obtained from DAQ card and  transmitted  to  the  laptop  to  determine  the  steady-state tracking setting points and optimal control vectors based on the MPC algorithm, where the MPC controller is coded utilizing Matlab 2020a m.ﬁles encapsulated in a S-function module and performed in a laptop with a Intel(R) Core(TM) Utral 5 125H CPU at 1.20GHZ and 32GB RAM.
+
+Fig. 4: Implemented prototype of WPT system.
+
+For the MPC controller, the lower and upper bound of hard constraint conditions (18) and (19) are umin  = 0, umax  = 1, y1 ,min   = 0A, y1 ,min   = 2.5A, y2 ,min   = 0V, y2 ,max   = 35V. The relevant parameters of prediction horizon, control horizon, weighting matrices  are  set  as  Np   =  5,  Nc    =  3,  Q  =  I, and  R   =   0.5I  with  proper  dimension,  respectively.  The MPC  controller  utilizes  two  real-time  measured  current  IL and  voltage  UL    states  to  optimize  the  duty  cycle  d(k)  at each sampling instant k, and deliver it to PWM generator to control the DC-DC converter, where the DAQ card measures 1000  samples  for  per   second  from  DC-DC  converter.  In the following, experiments for different work conditions are respectively implemented in order to verify the effectiveness of the controller. The experimental conditions  are  all taken as the same for these three cases, and different experimental parameters are declared before utilization.
+
+B.  Transient Performance to Reference Current Variation
+In order to validate the proposed controller’s transient per- formance,the current reference step-responses are introduced to assess. The step-response waveforms are illustrated in Fig. 5 corresponds to the step up current from 0.5 to 1A and 1 to 1.5A, respectively, for optimal operation with 9.8μH of mutual
+
+
+
+TABLE I
+MAIN EXPERIMENTAL PARAMETERS OF WPT SYSTEM
+
+Symbol	Meaning	Value
+k	Coupling coefﬁcient	0.15
+EDC	DC input voltage	22V
+Lr	Inductance of inverter output	9.74μH
+Cp	Resonance capacitor	238.06nF
+Lp	Inductance of transmitting coil	20.842μH
+Cr	Compensation capacitor	240.86nF
+Ls	Inductance of receiving coil	9.17μH
+Cf	Filter capacitor	100μF
+Rr	Inductor resistance of inverter output	0.22Ω
+Rp	Inductor resistance at transmitting side	0.09Ω
+Rs	Inductor resistance at receiving side	0.056Ω
+M12	Mutual inductance	9.8μH
+Cs	Resonance capacitor	265.66nF
+l	Coil distance	2cm
+
+
+[500mA/div]
+
+
+
+
+[10V/div]
+
+
+(a)                                                            (b)
+Fig. 5: Output current responses with the proposed MPC when applying reference current step. (a) Input current steps from 0.5 to 1A. (b) Input current steps from 1 to 1.5A.
+
+inductance. The transients of the receiving side for these two cases are around 0.5ms and  1ms, respectively. In Fig. 6, the results for  a  step  down  change for  2 to  1A  and  2  to  1.5A in the current reference are displayed, with transient times of around  6ms  and  3ms,  respectively.  In  the  two  current  step tracking cases, the controller do not have overshoot to reach the new  steady-state  during  the transient process. From the experimental results, it can be seen that the control algorithm has a good ability with a fast response  speed to ensure the efﬁciency and performance of regulating the charging current for load.
+
+C.  Multi-Stage Load Variation
+In this case, we have conducted tracking performance tests for multi-stage load variations during a charging process to evaluate the robustness of the MPC controller against ﬂuctua- tions. For a good controller of DC-DC converter, it is important to maintain the stable output current when load resistance RL suddenly changes. In the experiment, when therectiﬁer output voltage is set around 20V, the output current of load is required to stabilize at 1.5A, then it can be calculated that the ideal duty cycled(k)(uss ) of MPC controller is 37.5% and 75% by taking load resistance as RL  = 5Ω and RL  = 10Ω, respectively, with a fully 9.8μH of mutual inductance.
+Fig. 7(a) and Fig. 7(c) ﬁrst show the steady-state tracking of current and actual duty cycle is stable at 1.5A with no ripple,
+
+
+
+
+[1A/div]
+
+
+
+
+[20V/div]
+
+
+(a)	
+[1A/div]
+
+
+
+[20V/div]
+
+
+(b)
+Fig. 6: Output current response with the proposed MPC when applying reference current step. (a) Input current steps from 2 to 1A. (b) Input current steps from 2 to 1.5A.
+
+and the corresponding true duty cycle of MPC controller is 38.81%  and  74%, respectively. It can be  seen  that the true duty  cycle  optimized  from the MPC  controller is basically consistent with the ideal duty cycle at the steady-state, which effectively demonstrates the optimization efﬁcacy for the ideal duty cycle under different load resistance. In order to further validate the tracking  ability  of load resistance  change,  Fig. 8(a) shows the steady-state current tracking and its tracking performance under a changed load resistance case. The dy- namic  and  steady-state  waveforms  in  Fig.  8(a),  before  and after the change of load resistance, indicate that the designed MPC controller can effectively deal variations and maintain excellent  steady-state  current  output for load. This  scenario demonstrates  the  controller’s  robustness  in  regulating  the charging current. More speciﬁcally, when the load resistance steps  up  from  5  to  10Ω,  as  shown in Fig.  8(a), the MPC controller can still stabilize at  1.5A  with a adjustment time about 30ms. When the load resistance steps down from 10 to 5Ω, as shown in Fig. 8(c), the adjustment time is within 40ms. For both cases, it can be seen that the controller can maintain at its reference current  1.5A well by re-optimizing the duty cycled(k), and has a high control precision and fast adjusting speed with a little ﬂuctuation. This indicates excellent and fast current regulation performance of the controller.
+In the concerned scenario, the current and duty cycle con- straints are imposed on the controller optimization. Handling multivariable  constraints  are  the  merit  of  MPC,  it  is  clear that  the  current  and  duty  cycle  always  satisfy  the  setting limitation value even if the load resistance changes suddenly. Therefore, the controller can effectively constrain current to protect circuit safety. Considering all the presented results, it can be concluded that the designed MPC controller illustrates resilience in handling load resistance dynamic variation, and is well-suited to the control requirement of constant current regulation in WPT system.
+
+D.  Comparison with PID Controller
+In this subsection, in order to show the superiority of the designed  MPC  controller  in  achieving  optimized  transient performance  such  as  smooth  transition  and  fast  response time, it is compared with the PID controller. For achieving
+
+
+
+
+U1
+dk
+
+UL
+IL	[50V/div]
+
+
+[10V/div]
+
+[1A/div]
+
+(a) MPC for RL  = 5Ω
+
+
+U1
+d
+k
+
+UL
+IL
+
+(b) PID for RL  = 5Ω
+
+
+
+U1
+dk
+UL
+
+IL	[50V/div]
+
+
+[10V/div]
+
+[1A/div]
+
+(c) MPC for RL  = 10Ω
+
+
+
+U1
+dk
+UL
+IL	[50V/div]
+
+
+[10V/div]
+
+[2A/div]
+
+
+(d) PID for RL  = 10Ω
+
+Fig. 7: Experimental comparisons of load current, voltage and actual duty cycle d(k) between the designed MPC and PID controller for different load resistance to track their ideal duty cycles uss.
+
+[10V/div]
+UL
+UL
+
+PID
+
+L
+5Ω     10Ω
+[1A/div]
+
+(a)                                                         (b)                                                         (c)                                                         (d)
+Fig. 8: Experimental comparisons of load current and voltage waveforms between the designed MPC with PID controller under suddenly changed load resistance RL . (a) Zoom-in waveforms when RL  steps up from 5Ω to 10Ω with MPC. (b) Zoom-in waveforms when RL  steps down from 5Ω to 10Ω with PID.
+
+
+TABLE II
+EXPERIMENTAL COMPARISON RESULTS OF THE DESIGNED
+MPC WITH PID CONTROLLER
+
+Condition	Controller	Load
+Resistance	Deviation	Settling
+Time
+
+Steady-State	MPC
+PID	5Ω	1.3%
+2.9%	/
+/
+/
+/
+30ms
+150ms
+40ms
+150ms
+	MPC
+PID	10Ω	1.0%
+7.0%	
+
+Load Mutation	MPC
+PID	5Ω ! 10Ω	/
+/	
+	MPC
+PID	10Ω ! 5Ω	/
+/	
+
+a  fair  comparison,  all  the  system  structure  and parameters are  adopted  the  same  as  the  MPC  situation.  The  values  of proportional, integral, and derivative are set as 0.1, 4, and 0.01, respectively.
+Fig. 7 shows the control accuracy of these two controllers to track the ideal (setting) duty under load resistance 5Ω and 10Ω . For example, the ideal duty is 37.5% when the load resistance RL   is  taken  as  5Ω .  The  MPC  controller  yields  a  smaller deviation  (1.3%  in  d(k))  against  the  PID  controller  (2.9% in d(k)), as presented in Table II. It can be observed from the steady-state comparison that the designed MPC controller ensures more accurate tracking with small current ripple.
+Fig. 8 further compares the dynamic control performance for  load  step  up  from  5  to  10Ω  and  step down from 5  to 10Ω, respectively. For the considered load step variations, as shown in Table II, both controllers  are  capable  of tracking
+
+
+the 1.5A reference current, but the proposed MPC controller achieves a faster transient response, settling within 30-40ms. This  performance  notably  outperforms  the  PID  controller, which requires  approximately  150ms  to  settle.  It  illustrates that the load resistance will not affect dynamic performance signiﬁcantly for the MPC controller.
+From  this  comparison,  the  following  conclusion  can  be drawn. Compared with the PID controller, the MPC controller has better dynamic performance facing load ﬂuctuation and excellent  steady-state  performance  against  model  parameter uncertainty. It shows a high potential for application ranging from consumer electronic to electric vehicle charging.
+
+V.  CONCLUSION
+In this paper, a constrained MPC to achieve current regula- tion of DC-DC converter for WPT system is studied. Based on the equivalent circuit model of DC-DC converter, a linearized prediction model is given, then a tracking performance func- tion to current and duty cycle is designed. Meanwhile, for the sake of protecting circuit safety, the limitations on current and voltage are imposed in the controller on-line optimization at each sampling time. The optimal control sequence is obtained by  solving  a receding  horizon problem, which is described by  a  QP  problem,  so  that  the  controller  avoids  to  have  a high computation burden. The designed MPC controller has optimized  dynamics  and  accurate  current  set-point  tracking for mutual inductance and load variation in both dynamic per- formance and steady-state performance. Experimental results under various operating conditions validate both the feasibility and effectiveness of the proposed control method.

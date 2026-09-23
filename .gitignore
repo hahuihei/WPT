@@ -1,0 +1,27 @@
+# ===== TI Code Composer Studio 编译产物 =====
+Debug/
+Release/
+*.obj
+*.out
+*.map
+*.d
+*.lst
+*.pp
+*.opt
+*.bak
+*.pjt
+ccsObjs.opt
+
+# ===== CCS / Eclipse 工作区元数据（本机相关，不入库）=====
+.metadata/
+RemoteSystemsTempFiles/
+
+# ===== Python 缓存 =====
+__pycache__/
+*.pyc
+
+# ===== 系统/编辑器临时文件 =====
+Thumbs.db
+desktop.ini
+*.swp
+*~
