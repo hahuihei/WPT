@@ -6,7 +6,12 @@
 #include "../APP/pid/pid.h"
 #include <string.h>
 
-#define CTL_MPC   1
+#define CTL_MPC   0
+
+/* PI 周期对齐 MPC: 置 1 时 PI 每拍结束后忙等补齐到 TARGET_CYCLE_US, 使控制周期与 MPC 一致;
+   置 0 时立即关闭延迟(恢复快速 PI) */
+#define PI_MATCH_MPC       0
+#define TARGET_CYCLE_US    1370   /* 目标周期(µs), 取 MPC 模式下 monitor_cycle_us 的值 */
 
 /* 负载检测去抖: 连续 RL_VOTE_N 拍一致才切换, 切换后锁存 RL_LOCK_M 拍不再检测 */
 #define RL_VOTE_N   2     /* 连续一致拍数 */
@@ -137,7 +142,8 @@ void main(void)
                 r_eff = voltage / current_filtered;
                 /* 判断阻值区间 */
                 if      (r_eff >= 3.5f && r_eff <= 7.5f)  r_eff = 5.0f;
-                else if (r_eff >= 7.5f && r_eff <= 15.0f) r_eff = 10.0f;
+                else if (r_eff >= 7.5f && r_eff <= 12.5f) r_eff = 10.0f;
+                else if (r_eff >= 12.5f && r_eff <= 17.5f) r_eff = 15.0f;
                 else                                       r_eff = detected_RL; /* 保持 */
             } else {
                 r_eff = detected_RL;
@@ -177,6 +183,14 @@ void main(void)
         PID_Controller(target, current_filtered, &duty);
 #endif
         PWM_UpdateDutyCycle(duty);
+
+#if !CTL_MPC && PI_MATCH_MPC
+        /* PI 模式: 忙等补齐到目标周期, 让控制周期与 MPC 一致(关掉: PI_MATCH_MPC=0) */
+        {
+            Uint32 target_ticks = (Uint32)(TARGET_CYCLE_US * 150.0f);
+            while ((t_start - CpuTimer2Regs.TIM.all) < target_ticks) { asm(" NOP"); }
+        }
+#endif
 
         /* 测量本拍控制周期耗时(采样→PWM更新) */
         {

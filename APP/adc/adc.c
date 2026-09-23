@@ -17,7 +17,7 @@
 #define ADC_CH_CURRENT  1
 
 #define VOLTAGE_SCALE   10.091f
-#define CURRENT_SCALE   3.9916f  /* 校准: 示波器 1.47A / ADC 1.527A × 4.0816 */
+#define CURRENT_SCALE   3.9916f  /* 换新BUCK后重标: 真实I=V/R=13.82/10=1.382A, 采样1.079A → 3.9916×1.382/1.079 */
 
 #define ADC_REF_VOLTAGE 3.0f
 #define ADC_MAX_VALUE   4095.0f

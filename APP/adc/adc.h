@@ -5,7 +5,7 @@
 
 /* ADC 参数 */
 #define BUF_SIZE      2    /* 通道数：电压 + 电流 */
-#define SAMPLE_NUM    10    /* 每通道采集点数（减少点数缩短控制周期，噪声用一阶滤波缓解） */
+#define SAMPLE_NUM    40    /* 每通道采集点数（减少点数缩短控制周期，噪声用一阶滤波缓解） */
 
 /* 中断采集后的平均 raw ADC 值 (每次攒满 SAMPLE_NUM 后更新) */
 extern volatile float32 ADValue[BUF_SIZE];
