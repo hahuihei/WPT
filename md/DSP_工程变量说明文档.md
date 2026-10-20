@@ -134,24 +134,25 @@
 | `monitor_global_iB_filtered` | 滤波后电流（当前未滤波，= current） |
 | `monitor_global_us` | 最终输出占空比 = duty |
 
-### 耗时测量（CpuTimer2，150MHz）
+### 分模块耗时测量（CpuTimer2，150MHz）
 
-| 变量 | 含义 | 单位 |
-|------|------|------|
-| `monitor_cycle_ticks` | 控制周期耗时 | 150MHz 时钟周期数 |
-| `monitor_control_cycle` | 控制周期耗时 | 微秒 |
-| `monitor_cycle_max_ticks` | 控制周期最大耗时 | 时钟周期数 |
-| `monitor_mpcc_ticks` | MPCC 单独耗时 | 时钟周期数 |
-| `monitor_mpccQP` | MPCC 单独耗时 | 微秒 |
+| 变量 | 含义 | 定义位置 |
+|------|------|---------|
+| `monitor_sstc_time_us` | SSTC 单独耗时（微秒） | mpcc.c |
+| `monitor_mpcc_qp_us` | MPCC 动态 QP 单独耗时（微秒） | mpcc.c |
+| `monitor_control_cycle` | 整个控制周期耗时（微秒） | main.c |
 
 ### 数据导出历史数组
 
 | 变量 | 含义 |
 |------|------|
-| `monitor_mpccQP_hist[100]` | MPCC 耗时历史（微秒），用于 CCS Memory Browser 导出 |
+| `monitor_sstc_time_us_hist[100]` | SSTC 耗时历史（微秒），CCS Memory Browser 导出 |
+| `monitor_mpcc_qp_us_hist[100]` | MPCC QP 耗时历史（微秒） |
 | `monitor_control_cycle_hist[100]` | 控制周期历史（微秒） |
 | `log_index` | 已记录点数 |
 | `log_full` | =1 表示已存满 100 点 |
+
+> PI 模式（`CTL_MPC=0`）下只记录 `monitor_control_cycle`，不记录 SSTC/QP 耗时。
 
 ### 系统状态
 
@@ -298,8 +299,9 @@ monitor_sstc_ys_v        // 稳态电压目标
 ```
 monitor_adc_voltage      // ADC 电压
 monitor_adc_current      // ADC 电流
-monitor_control_cycle    // 控制周期耗时（µs）
-monitor_mpccQP           // MPCC 单独耗时（µs）
+monitor_control_cycle    // 整个控制周期耗时（µs）
+monitor_sstc_time_us    // SSTC 耗时（µs）
+monitor_mpcc_qp_us       // MPCC QP 耗时（µs）
 ```
 
 ### 硬件调试组

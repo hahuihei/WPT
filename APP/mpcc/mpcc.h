@@ -52,6 +52,9 @@ extern volatile float32 monitor_xu_raw[3];
 extern volatile float32 monitor_qp_iter;
 extern volatile float32 monitor_qp_exit;
 
+extern volatile float32 monitor_sstc_time_us;
+extern volatile float32 monitor_mpcc_qp_us;
+
 void MPCC_Init(void);
 void MPCC_RecomputeModel(float32 newRL);  /* RL变化时重算预测矩阵 */
 void MPCC_Controller(float32 current_tgt, float32 voltage_tgt,

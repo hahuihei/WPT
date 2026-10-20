@@ -47,6 +47,10 @@ volatile float32 monitor_xu_raw[3] = {0};
 volatile float32 monitor_qp_iter   = 0.0f;
 volatile float32 monitor_qp_exit   = 0.0f;
 
+/* ---- 分模块耗时监控 (CpuTimer2, 150MHz) ---- */
+volatile float32 monitor_sstc_time_us    = 0.0f;   /* SSTC 单独耗时(微秒) */
+volatile float32 monitor_mpcc_qp_us = 0.0f;   /* MPCC 动态 QP 单独耗时(微秒) */
+
 static float32 ys_ref[2];
 static float32 us_ref;
 
@@ -141,12 +145,22 @@ void MPCC_Controller(float32 current_tgt, float32 voltage_tgt,
     float32 yt[2];  yt[0] = voltage_tgt;  yt[1] = current_tgt;
     /* ut = 期望稳态占空比 = 目标电压/输入电压, 用 voltage_tgt 而非固定 BUCK_RL,
        否则负载切换后 ut 错误会把 SSTC 的电流推到约束边界 */
-    SSTC_Compute(yt, Q_diag, R_scalar,
-                 voltage_tgt/BUCK_UF,
-                 y_min, y_max, ys_ref, &us_ref);
+    {
+        Uint32 t0 = CpuTimer2Regs.TIM.all;
+        SSTC_Compute(yt, Q_diag, R_scalar,
+                     voltage_tgt/BUCK_UF,
+                     y_min, y_max, ys_ref, &us_ref);
+        Uint32 t1 = CpuTimer2Regs.TIM.all;
+        monitor_sstc_time_us = (float32)(t0 - t1) / 150.0f;
+    }
 
     for (i=0; i<Np*Ny; i++) g_be[i] = g_MM[i][0]*x[0] + g_MM[i][1]*x[1];
-    MPC_SolveFullQP(u_opt, &qp_status);
+    {
+        Uint32 t0 = CpuTimer2Regs.TIM.all;
+        MPC_SolveFullQP(u_opt, &qp_status);
+        Uint32 t1 = CpuTimer2Regs.TIM.all;
+        monitor_mpcc_qp_us = (float32)(t0 - t1) / 150.0f;
+    }
 
     *duty_cycle = u_opt[0];
     if (*duty_cycle < u_min) *duty_cycle = u_min;

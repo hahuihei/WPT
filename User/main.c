@@ -43,18 +43,15 @@ volatile float32 monitor_global_Ub         = 0.0f;
 volatile float32 monitor_global_iB         = 0.0f;
 volatile float32 monitor_global_iB_filtered= 0.0f;
 volatile float32 monitor_global_us         = 0.0f;
-volatile Uint32  monitor_cycle_ticks       = 0;       /* 控制周期耗时(150MHz 时钟周期数) */
-volatile float32 monitor_control_cycle     = 0.0f;    /* 控制周期耗时(微秒) */
-volatile Uint32  monitor_cycle_max_ticks   = 0;       /* 最大耗时(观察周期波动) */
-volatile Uint32  monitor_mpcc_ticks        = 0;       /* MPCC 单独耗时(150MHz 时钟周期数) */
-volatile float32 monitor_mpccQP            = 0.0f;    /* MPCC 单独耗时(微秒) */
+volatile float32 monitor_control_cycle     = 0.0f;    /* 整个控制周期耗时(微秒) */
 extern volatile float32 monitor_mpcc_duty_cycle;
 extern volatile float32 monitor_mpcc_us_ref;
 extern volatile float32 monitor_mpcc_delta_duty;
 
 /* === 数据导出用历史数组 (CCS Memory Browser 导出到 Excel) === */
 #define LOG_N 100
-volatile float32 monitor_mpccQP_hist[LOG_N];          /* MPCC 耗时历史(微秒) */
+volatile float32 monitor_sstc_time_us_hist[LOG_N];    /* SSTC 耗时历史(微秒) */
+volatile float32 monitor_mpcc_qp_us_hist[LOG_N];      /* MPCC QP 耗时历史(微秒) */
 volatile float32 monitor_control_cycle_hist[LOG_N];   /* 控制周期历史(微秒) */
 volatile Uint16  log_index = 0;   /* 已记录点数 */
 volatile Uint16  log_full  = 0;   /* =1 表示已存满 100 点 */
@@ -178,14 +175,7 @@ void main(void)
 
             voltage_target = current_target * detected_RL;
         }
-        {
-            Uint32 t_mpcc_start = CpuTimer2Regs.TIM.all;   /* MPCC 前读计数 */
-            MPCC_Controller(current_target, voltage_target, voltage, current_filtered, &duty);
-            Uint32 t_mpcc_end = CpuTimer2Regs.TIM.all;     /* MPCC 后读计数 */
-            Uint32 mpcc_ticks = t_mpcc_start - t_mpcc_end;
-            monitor_mpcc_ticks = mpcc_ticks;
-            monitor_mpccQP = (float32)mpcc_ticks / 150.0f;
-        }
+        MPCC_Controller(current_target, voltage_target, voltage, current_filtered, &duty);
 #else
         PID_Controller(target, current_filtered, &duty);
 #endif
@@ -200,17 +190,14 @@ void main(void)
 #endif
 
         /* 测量本拍控制周期耗时(采样→PWM更新) */
-        {
-            Uint32 t_end = CpuTimer2Regs.TIM.all;
-            Uint32 ticks = t_start - t_end;    /* 递减计数器差值 */
-            monitor_cycle_ticks = ticks;
-            monitor_control_cycle = (float32)ticks / 150.0f;   /* 150MHz: 1µs=150ticks */
-            if (ticks > monitor_cycle_max_ticks) monitor_cycle_max_ticks = ticks;
-        }
+        monitor_control_cycle = (float32)(t_start - CpuTimer2Regs.TIM.all) / 150.0f;   /* 150MHz: 1µs=150ticks */
 
         /* 记录到导出数组(各100点), 存满后置 log_full */
         if (log_index < LOG_N) {
-            monitor_mpccQP_hist[log_index]        = monitor_mpccQP;
+#if CTL_MPC
+            monitor_sstc_time_us_hist[log_index]       = monitor_sstc_time_us;
+            monitor_mpcc_qp_us_hist[log_index]    = monitor_mpcc_qp_us;
+#endif
             monitor_control_cycle_hist[log_index] = monitor_control_cycle;
             log_index++;
             if (log_index >= LOG_N) log_full = 1;
