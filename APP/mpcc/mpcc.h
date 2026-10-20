@@ -26,7 +26,7 @@
 #define BUCK_RL                     10.0f
 #define BUCK_C                      10e-6f
 #define BUCK_L                      3e-3f
-#define BUCK_UF                     20.0f   /* 输入侧母线电压 */
+#define BUCK_UF                     25.0f   /* 输入侧母线电压 */
 
 /* Output dimension: 2 (voltage + current) */
 #define MPCC_NY                     2

@@ -1,287 +1,312 @@
-# DSP 工程变量和作用说明文档
+# DSP 工程变量与参数说明文档
 
-## 文档概述
-
-本文档详细说明 DSP8233x_BUCK 工程中的所有监测变量及参数，方便在 CCS 仿真中实时监测系统状态。所有监测变量均使用 `volatile` 关键字声明。
-
-**工程用 qpOASES 求解 8 变量完整 QP（5 个输出预测 + 3 个控制量），与论文/MATLAB 数学等价。** 详细证明见 `MPC_QP求解器验证证明.md`。
+> 本文档是工程全部**监测变量**和**配置参数**的字典，按模块分组，供 CCS 仿真与工程交接查阅。
+> 所有监测变量均用 `volatile` 声明，可在 CCS Expressions 窗口实时查看。
+> 配套文档：[项目说明文档.md](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/md/项目说明文档.md)、[监控变量调试指南.md](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/md/监控变量调试指南.md)
 
 ---
 
-## 在 CCS 中查看监测变量的方法
+## 0. 在 CCS 中查看变量的方法
 
 1. 暂停 DSP → Expressions 窗口 → Add New Expression → 输入变量名
 2. 启用实时模式：点工具栏时钟/仪表盘图标变蓝
 3. Expressions 窗口右上角下拉 → 勾选 "Continuous Refresh"
 4. Resume 运行 DSP
 
----
-
-## 变量速查表（Quick Reference）
-
-| 变量 | 含义 | 正常值 | QP 验证关键 |
-|------|------|--------|:---:|
-| `monitor_qp_exit` | QP 退出码 | **0** | ★★★ |
-| `monitor_xu_raw[0]` | QP 解 u₀ | 与 duty_cycle 同 | ★★ |
-| `monitor_xu_raw[1]` | QP 解 u₁ | **≠ u₀** | ★★★ |
-| `monitor_xu_raw[2]` | QP 解 u₂ | **≠ u₀, u₁** | ★★★ |
-| `monitor_mpcc_duty_cycle` | 输出占空比 | 0.6~0.9 | ★★ |
-| `monitor_mpcc_error` | 电流误差 | ≈0 | ★★ |
-| `monitor_state_voltage` | 状态 x[0]→电压 | 10~16V | — |
-| `monitor_state_current` | 状态 x[1]→电流 | 0.6~0.8A | — |
-| `monitor_be[0]` | 自由响应 | =voltage/20 | ★ |
-| `monitor_ff_u[0]` | QP 解的 u₀ | =duty | ★ |
-| `monitor_ff_u[1]` | QP 目标函数值 | 负数 | — |
-| `monitor_ff_u[2]` | QP 工作集重算 | 0~15 | — |
+数组变量（如 `monitor_xu_raw`）在 Expressions 中展开即可查看各元素。
 
 ---
 
-## 1. MPCC 控制性能监测 (`mpcc.c`)
+## 1. 变量速查表（Quick Reference）
 
-### 控制目标监测
+| 变量 | 含义 | 正常值（10Ω / 1.5A） |
+|------|------|----------------------|
+| `monitor_qp_exit` | MPCC QP 退出码 | **0** |
+| `monitor_xu_raw[0]` | QP 解 u₀ | ≈ 前馈占空比 ≈ 0.6 |
+| `monitor_xu_raw[1]` | QP 解 u₁ | 与 u₀ 有微差异 |
+| `monitor_xu_raw[2]` | QP 解 u₂ | 与 u₀/u₁ 有微差异 |
+| `monitor_mpcc_duty_cycle` | 输出占空比 | ≈ 0.6 |
+| `monitor_mpcc_error` | 电流跟踪误差 | ≈ 0 |
+| `monitor_state_voltage` | 实测输出电压 | ≈ 15V |
+| `monitor_state_current` | 实测电感电流 | ≈ 1.5A |
+| `monitor_sstc_ys_i` | SSTC 稳态电流目标 | ≈ 1.5 |
+| `monitor_sstc_us` | SSTC 稳态占空比 | ≈ 0.6 |
+| `monitor_adc_timeout_count` | ADC 超时次数 | **0** |
 
-| 变量 | 含义 | 单位 | 更新时机 |
-|------|------|------|---------|
-| `monitor_mpcc_target` | MPC 内部模型跟踪目标 `ys_ref` | A（电流模式） | 每次 MPCC_Controller |
-| `monitor_mpcc_error` | 目标值与实际值的误差 = `ys_ref − voltage/BUCK_RL` | A | 每次 |
-| `monitor_mpcc_duty_cycle` | MPC 控制器计算的最优占空比（已 clamp 到 0~1） | — | 每次 |
+> 上表「正常值」基于 `BUCK_UF=25`、`current_target=1.5A`、负载 10Ω。不同负载下的期望值见第 8 节。
 
-### QP 求解状态监测（最重要）
+---
 
-| 变量 | 含义 | 取值说明 |
-|------|------|---------|
-| `monitor_mpcc_qp_status` | QP 求解状态 | 0=成功，非0=失败 |
-| `monitor_qp_exit` | qpOASES 退出标志 | **0=SUCCESS**，1=不可行，2=超迭代，-1=回退到闭式解 |
-| `monitor_qp_iter` | QP 工作集重算次数 | 正常 2~15，0 表示闭式解或旁路模式 |
+## 2. MPCC 动态控制层（[mpcc.c](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/mpcc/mpcc.c)）
 
-**判断 qpOASES 是否在跑的关键逻辑**：
-- `monitor_qp_exit == 0` **且** `monitor_xu_raw[0,1,2]` 三点不全相等 → qpOASES 正常
-- `monitor_qp_exit == -1` → QP 失败，自动回退到闭式解
-- `monitor_qp_iter == 0` 且 `monitor_xu_raw` 全是垃圾 → qpOASES 未初始化
+### 控制目标与输出
 
-### 状态变量监测
-
-| 变量 | 含义 | 来源 |
+| 变量 | 含义 | 说明 |
 |------|------|------|
-| `monitor_state_voltage` | 状态 x[0]，即 Buck 输出电压经低通后进 MPC | ADC 采样 + 低通滤波 |
-| `monitor_state_current` | 状态 x[1]，即 Buck 输出电流经低通后进 MPC | ADC 采样 + 低通滤波 |
+| `monitor_mpcc_target` | 传给 MPCC 的电流跟踪目标 = `ys_ref[1]` | 应 ≈ `current_target` |
+| `monitor_mpcc_error` | 电流误差 = `ys_ref[1] − current` | 稳态趋近 0 |
+| `monitor_mpcc_duty_cycle` | 最终输出占空比（已 clamp 0~1） | 稳态 ≈ `us_ref` |
+| `monitor_mpcc_us_ref` | 前馈占空比 `us_ref` | = `monitor_sstc_us` |
+| `monitor_mpcc_delta_duty` | 反馈修正量 = duty − us_ref | 稳态 ≈ 0 |
+| `monitor_mpcc_qp_status` | MPCC QP 求解状态 | 0 = 成功 |
 
-### QP 内部数据监测（调试用）
-
-| 变量 | 大小 | 含义 | 如何验证正确性 |
-|------|------|------|--------------|
-| `monitor_be[5]` | 5 | 自由响应 g_be（预测步 0~4） | `be[0] = voltage/20` 手算对照 |
-| `monitor_mp_row0[3]` | 3 | g_MP 第一行（控制量对第 1 步预测的影响系数） | 应约 -0.003（Uf=20, T=10µs） |
-| `monitor_ff_u[3]` | 3 | QP 诊断：`[0]=x_opt[5]`（第一个控制量）, `[1]=目标函数值`, `[2]=工作集重算次数` | `ff_u[0] ≈ duty_cycle` |
-| `monitor_xu_raw[3]` | 3 | **QP 解的 3 个控制量** u₀, u₁, u₂ | **三点应有微差异（QP 独立优化三个变量）** |
-
----
-
-## 2. ADC 采样监测 (`adc.c`)
-
-### 原始采样值
-
-| 变量 | 含义 | 范围 |
-|------|------|------|
-| `monitor_adc_raw_voltage` | 原始电压 ADC 值（200 次平均） | 0~4095 |
-| `monitor_adc_raw_current` | 原始电流 ADC 值（200 次平均） | 0~4095 |
-
-### 转换后物理值
-
-| 变量 | 含义 | 标定公式 |
-|------|------|---------|
-| `monitor_adc_voltage` | 标定后的实际电压值 | `(avg/4095) × 3.0 × 10.091` |
-| `monitor_adc_current` | 标定后的实际电流值 | `((avg/4095)×3.0 − bias_v) × 4.0816` |
-| `monitor_adc_current_bias` | 电流零偏值（ADC 原始值） | 启动阶段测量 |
-
-### 采样统计
-
-| 变量 | 含义 | 异常标志 |
-|------|------|---------|
-| `monitor_adc_sample_count` | 累计采样次数 | 持续增长 = 主循环正常 |
-| `monitor_adc_timeout_count` | ADC 超时次数 | >0 = ADC 采集异常，需检查硬件 |
-
-### 硬件状态
+### 状态变量
 
 | 变量 | 含义 |
 |------|------|
-| `monitor_adc_st` | ADCST 寄存器（Uint16） |
-| `monitor_adc_result0` | ADCRESULT0 最后一次原始值（Uint16，12 位有效） |
-| `monitor_adc_result1` | ADCRESULT1 最后一次原始值（Uint16，12 位有效） |
+| `monitor_state_voltage` | 状态 x[0]，实测输出电压 (V) |
+| `monitor_state_current` | 状态 x[1]，实测电感电流 (A) |
+
+### QP 内部数据（调试用）
+
+| 变量 | 大小 | 含义 |
+|------|------|------|
+| `monitor_qp_exit` | — | qpOASES 退出码：**0=成功**，非 0=失败（失败时已回退到 us_ref） |
+| `monitor_qp_iter` | — | QP 工作集重算次数（nWSR） |
+| `monitor_xu_raw[3]` | 3 | QP 解的 3 个控制量 u₀/u₁/u₂，应平滑且有微差异 |
+| `monitor_be[10]` | 10 | 自由响应 g_be（5 预测步 × 2 输出） |
+| `monitor_mp_row0[3]` | 3 | 脉冲响应矩阵 g_MP 第一行 |
+| `monitor_ff_u[3]` | 3 | QP 诊断：`[0]=u_opt[0]`、`[1]=目标函数值`、`[2]=迭代次数` |
 
 ---
 
-## 3. PWM 控制监测 (`pwm.c`)
+## 3. SSTC 稳态目标层（[sstc.cpp](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/sstc/sstc.cpp)）
+
+| 变量 | 含义 | 说明 |
+|------|------|------|
+| `monitor_sstc_Kv` | 电压通道 DC 增益 K[0] | = `BUCK_UF`（恒定） |
+| `monitor_sstc_Ki` | 电流通道 DC 增益 K[1] | = `BUCK_UF / RL`，随负载变化 |
+| `monitor_sstc_ys_v` | 稳态电压目标 ys[0] | = 电压目标 |
+| `monitor_sstc_ys_i` | 稳态电流目标 ys[1] | 应 ≈ `current_target` |
+| `monitor_sstc_us` | 稳态占空比 us | = `voltage_tgt / BUCK_UF` |
+| `monitor_sstc_obj` | SSTC QP 目标函数值 | 负数，绝对值小 = 偏差小 |
+
+### 松弛变量 η（软约束监控，仅 `SSTC_ENABLE=1` 时有意义）
+
+| 变量 | 含义 |
+|------|------|
+| `monitor_sstc_eta_v` | 电压软约束松弛量 η_v |
+| `monitor_sstc_eta_i` | 电流软约束松弛量 η_i |
+| `monitor_eta_v_active_cnt` | η_v 激活累计次数 |
+| `monitor_eta_i_active_cnt` | η_i 激活累计次数 |
+| `monitor_eta_v_hist[20]` | η_v 每次激活峰值历史 |
+| `monitor_eta_i_hist[20]` | η_i 每次激活峰值历史 |
+| `monitor_eta_v_hist_idx` | η_v 历史写入位置 |
+| `monitor_eta_i_hist_idx` | η_i 历史写入位置 |
+
+---
+
+## 4. ADC 采样层（[adc.c](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/adc/adc.c)）
+
+| 变量 | 含义 | 正常值/判断 |
+|------|------|------------|
+| `monitor_adc_raw_voltage` | 电压通道原始 ADC 均值（0~4095） | 满量程对应 3.0V |
+| `monitor_adc_raw_current` | 电流通道原始 ADC 均值 | 同上 |
+| `monitor_adc_voltage` | 标定后输出电压 (V) | = `monitor_state_voltage` |
+| `monitor_adc_current` | 标定后输出电流 (A) | = `monitor_state_current` |
+| `monitor_adc_current_bias` | 电流零点偏置（上电测量） | 稳定值 |
+| `monitor_adc_sample_count` | 采样批次数 | 持续递增 |
+| `monitor_adc_timeout_count` | ADC 转换超时次数 | **应为 0** |
+| `monitor_adc_st` | ADC 状态寄存器 `ADCST` | 诊断用 |
+| `monitor_adc_result0` | 电压通道最新单次转换值 | 诊断用 |
+| `monitor_adc_result1` | 电流通道最新单次转换值 | 诊断用 |
+
+---
+
+## 5. PWM 层（[pwm.c](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/pwm/pwm.c)）
 
 | 变量 | 含义 | 范围 |
 |------|------|------|
 | `monitor_pwm_duty_cycle` | 当前 PWM 占空比 | 0.0~0.99 |
 | `monitor_pwm_update_count` | PWM 更新次数 | 持续增长 |
-| `monitor_pwm_cmpa_value` | CMPA 寄存器值 = PERIOD × duty | 0~1500 |
+| `monitor_pwm_cmpa_value` | CMPA 寄存器值 = PERIOD × duty | 0~1485 |
 
 ---
 
-## 4. 系统状态监测 (`main.c`)
+## 6. 系统与全局层（[main.c](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/User/main.c)）
+
+### 全局反馈量
+
+| 变量 | 含义 |
+|------|------|
+| `monitor_global_Ub` | 实测输出电压 |
+| `monitor_global_iB` | 实测电感电流 |
+| `monitor_global_iB_filtered` | 滤波后电流（当前未滤波，= current） |
+| `monitor_global_us` | 最终输出占空比 = duty |
+
+### 耗时测量（CpuTimer2，150MHz）
+
+| 变量 | 含义 | 单位 |
+|------|------|------|
+| `monitor_cycle_ticks` | 控制周期耗时 | 150MHz 时钟周期数 |
+| `monitor_control_cycle` | 控制周期耗时 | 微秒 |
+| `monitor_cycle_max_ticks` | 控制周期最大耗时 | 时钟周期数 |
+| `monitor_mpcc_ticks` | MPCC 单独耗时 | 时钟周期数 |
+| `monitor_mpccQP` | MPCC 单独耗时 | 微秒 |
+
+### 数据导出历史数组
+
+| 变量 | 含义 |
+|------|------|
+| `monitor_mpccQP_hist[100]` | MPCC 耗时历史（微秒），用于 CCS Memory Browser 导出 |
+| `monitor_control_cycle_hist[100]` | 控制周期历史（微秒） |
+| `log_index` | 已记录点数 |
+| `log_full` | =1 表示已存满 100 点 |
+
+### 系统状态
 
 | 变量 | 含义 | 取值 |
 |------|------|------|
-| `monitor_system_uptime` | 主循环执行次数（Uint32） | 持续增长 |
-| `monitor_system_state` | 系统运行状态 | 0=READY, 1=RUNNING |
-| `monitor_control_mode` | 控制模式 | 0=电流, 1=电压 |
-| `monitor_target_value` | 当前目标值 | 电流或电压 |
-| `monitor_voltage_target` | 电压目标 | 默认 12.0V |
-| `monitor_current_target` | 电流目标 | 默认 0.75A |
-| `monitor_control_cycle_count` | 控制循环计数 | 持续增长 |
-| `monitor_build_id` | 编译版本标识 | 12345（验证新代码生效用） |
-
-### 全局变量监测
-
-| 变量 | 含义 | 用途 |
-|------|------|------|
-| `monitor_global_Ub` | 反馈电压值 | 对照 state_voltage |
-| `monitor_global_iB` | 反馈电流值（原始 ADC） | 对照 state_current |
-| `monitor_global_iB_filtered` | 反馈电流值（低通滤波后，进 MPC） | α=0.3 一阶滤波 |
-| `monitor_global_us` | 最终输出 duty | 对照 mpcc_duty_cycle |
-| `monitor_global_ys` | 被控输出值 | 电流模式=current，电压模式=voltage |
+| `monitor_system_uptime` | 主循环执行次数 | 持续增长 |
+| `system_state` | 系统运行状态 | 0=READY, 1=RUNNING |
+| `control_mode` | 控制模式 | 0=电流, 1=电压 |
+| `current_target` | 电流目标 | 默认 1.5A |
+| `voltage_target` | 电压目标 | = current_target × RL（动态） |
 
 ---
 
-## 5. QP 求解器 (`APP/qp/`)
+## 7. QP 求解器（[qpoases_port.cpp](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/qp/qpoases_port.cpp)）
 
-### 求解器信息
-- **名称**: qpOASES 3.2
-- **算法**: 在线 active-set 策略 (Online Active Set Strategy)
-- **证书**: GNU LGPL v2.1
-- **接入**: `qpoases_port.cpp`，extern "C" 接口供 `mpcc.c` 调用
+| 参数/常量 | 值 | 说明 |
+|-----------|-----|------|
+| `NV` | 13 | 变量数 = 5×2 输出 + 3 控制量 |
+| `NC` | 10 | 等式约束数 = 5×2 |
+| `DU_WEIGHT_H` | 1.0 | Δu 占空比变化率惩罚权重 |
+| nWSR | 80 | 工作集重算上限 |
+| 精度 | float | 单精度（`__USE_SINGLE_PRECISION__`） |
 
-### 调用流程
+调用流程：
+
 ```
-mpcc.c  →  MPC_SolveFullQP()
-  →  QPOASES_Solve()  [qpoases_port.h]
-    →  qpoases_port.cpp  (C++)
-      →  QProblem::init()     // 首次
-      →  QProblem::hotstart()  // 后续（热启动加速）
+mpcc.c → MPC_SolveFullQP()
+  → QPOASES_Solve()          [qpoases_port.h]
+    → QProblem::init()       首次
+    → QProblem::hotstart()   后续（热启动）
+    → 失败回退：u_opt = us_ref
 ```
-
-### 关键参数
-
-| 参数 | 值 | 说明 |
-|------|------|------|
-| NV | 8 | 5 个输出预测 y + 3 个控制量 u |
-| NC | 5 | 5 个等式约束（预测模型） |
-| 箱约束 | y ∈ [-0.01, 2], u ∈ [0, 1] | 电流和占空比硬约束 |
-| 等式约束 | Y = g_be + g_MP × U | 预测模型等式 |
-| Q 权重 | 1.0 | 输出跟踪 |
-| R 权重 | 1.0 | 控制量惩罚 |
-| 初始 WSR | 50 | 工作集重算上限 |
-| 精度 | 单精度 float | `__USE_SINGLE_PRECISION__` |
 
 ---
 
-## 6. 系统参数配置
+## 8. 关键配置参数汇总
 
-### Buck 电路参数 (`mpcc.h`)
+### Buck 电路参数（[mpcc.h](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/mpcc/mpcc.h)）
+
 | 参数 | 值 | 说明 |
-|------|------|------|
-| `BUCK_RL` | 20.0 | 负载电阻 (Ω) |
+|------|-----|------|
+| `BUCK_RL` | 10.0 | 默认负载电阻 (Ω) |
 | `BUCK_C` | 10e-6 | 输出电容 (F) |
 | `BUCK_L` | 3e-3 | 电感 (H) |
-| `BUCK_UF` | 20.0 | 等效输入电压 (V) |
+| `BUCK_UF` | 25.0 | 输入侧母线电压 (V) |
 
-### MPCC 算法参数 (`mpcc.h`)
+### MPCC 算法参数（[mpcc.h](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/mpcc/mpcc.h)）
+
 | 参数 | 值 | 说明 |
-|------|------|------|
+|------|-----|------|
 | `MPCC_PREDICTION_HORIZON` | 5 | 预测时域 Np |
 | `MPCC_CONTROL_HORIZON` | 3 | 控制时域 Nc |
-| `MPCC_SAMPLING_TIME` | 0.00001 | 采样时间 10µs (100kHz) |
+| `MPCC_SAMPLING_TIME` | 0.00001 | 10µs |
+| `MPCC_NY` | 2 | 输出维度 |
 
-### ADC 标定参数 (`adc.c`)
+### 权重与约束（[mpcc.c](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/mpcc/mpcc.c)）
+
+| 参数 | 初始值 | 运行时值 | 含义 |
+|------|--------|---------|------|
+| `Q_diag[0]` | 0.0 | 0.0 | 电压权重 |
+| `Q_diag[1]` | 1.0 | 1.0 | 电流权重 |
+| `R_scalar` | 20.0 | 10.0 | 占空比权重 |
+| `y_max[0]` | 40.0 | 40.0 | 电压上限 |
+| `y_max[1]` | 3.5 | 3.5 | 电流上限 |
+| `u_min/u_max` | 0/1 | 0/1 | 占空比限幅 |
+
+### ADC 标定参数（[adc.c](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/adc/adc.c)）
+
 | 参数 | 值 | 说明 |
-|------|------|------|
+|------|-----|------|
 | `VOLTAGE_SCALE` | 10.091 | 电压分压比 |
-| `CURRENT_SCALE` | 4.0816 | 电流传感器转换系数 |
+| `CURRENT_SCALE` | 3.9916 | 电流采样放大系数 |
+| `SAMPLE_NUM` | 40 | 每通道采样点数 |
 | `ADC_REF_VOLTAGE` | 3.0 | ADC 参考电压 (V) |
-| `ADC_MAX_VALUE` | 4095.0 | ADC 最大值 (12 位) |
+| `ADC_MAX_VALUE` | 4095.0 | ADC 最大值（12 位） |
 
-### PWM 参数 (`pwm.c`)
+### PWM 参数（[pwm.c](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/pwm/pwm.c)）
+
 | 参数 | 值 | 说明 |
-|------|------|------|
+|------|-----|------|
 | `PWM_FREQ` | 100000 | PWM 频率 100kHz |
 | `PWM_PERIOD` | 1500 | PWM 周期计数值 |
-| `PWM_DEAD_TIME` | 30 | 死区时间 ~200ns (30 × 6.67ns) |
+| `PWM_DEAD_TIME` | 30 | 死区 ~200ns（30 × 6.67ns） |
+
+### PID 参数（[pid.h](file:///d:/wenjian/OneDrive/workspace_v6_1_3/DSP8233x_BUCKSSTC/APP/pid/pid.h)）
+
+| 参数 | 值 |
+|------|-----|
+| `PID_KP_DEFAULT` | 0.02 |
+| `PID_KI_DEFAULT` | 0.008 |
+| `PID_KD_DEFAULT` | 0.0 |
+| `PID_OUT_MIN/MAX` | 0.0 / 0.99 |
 
 ---
 
-## 7. 推荐的监测变量组
+## 9. 不同负载下的期望值速查（`BUCK_UF=25`、`current_target=1.5A`）
+
+| 变量 | 5Ω | 10Ω | 15Ω |
+|------|-----|------|------|
+| `voltage_target` | 7.5V | 15V | 22.5V |
+| `monitor_sstc_Kv` | 25 | 25 | 25 |
+| `monitor_sstc_Ki` | 5.0 | 2.5 | 1.67 |
+| `monitor_sstc_us` | 0.3 | 0.6 | 0.9 |
+| `monitor_sstc_ys_v` | 7.5V | 15V | 22.5V |
+| `monitor_sstc_ys_i` | 1.5A | 1.5A | 1.5A |
+| `monitor_mpcc_duty_cycle` | ≈ 0.3 | ≈ 0.6 | ≈ 0.9 |
+
+> `monitor_sstc_ys_i` 始终 ≈ `current_target`（1.5A），这是「只控电流、电压仅约束」设计（`Q_diag[0]=0`）的直接体现。
+
+---
+
+## 10. 推荐的监测变量组
 
 ### QP 验证组（最高优先级）
+
 ```
 monitor_qp_exit          // 0 = qpOASES 成功
 monitor_xu_raw[0]        // u₀
 monitor_xu_raw[1]        // u₁（应 ≠ u₀）
 monitor_xu_raw[2]        // u₂（应 ≠ u₀,u₁）
 ```
-**用途**：确认 qpOASES 8 变量 QP 在运行
 
 ### 控制性能组
+
 ```
-monitor_mpcc_target      // 目标值
-monitor_mpcc_error       // 控制误差
+monitor_mpcc_target      // 电流目标
+monitor_mpcc_error       // 电流误差
 monitor_mpcc_duty_cycle  // 输出占空比
-monitor_mpcc_qp_status   // QP 求解状态
+monitor_mpcc_us_ref      // 前馈占空比
+monitor_mpcc_delta_duty  // 反馈修正量
 ```
 
-### 模型验证组
+### SSTC 稳态组
+
 ```
-monitor_be[0]            // 自由响应 g_be[0]
-monitor_mp_row0[0]       // g_MP[0][0]
-monitor_ff_u[0]          // QP 解的 u₀
-monitor_state_voltage    // 电压状态
+monitor_sstc_Ki          // 电流增益（随负载变化）
+monitor_sstc_us          // 稳态占空比
+monitor_sstc_ys_i        // 稳态电流目标
+monitor_sstc_ys_v        // 稳态电压目标
 ```
 
 ### 系统状态组
+
 ```
 monitor_adc_voltage      // ADC 电压
 monitor_adc_current      // ADC 电流
-monitor_pwm_duty_cycle   // PWM 占空比
-monitor_system_state     // 系统状态
+monitor_control_cycle    // 控制周期耗时（µs）
+monitor_mpccQP           // MPCC 单独耗时（µs）
 ```
 
 ### 硬件调试组
+
 ```
 monitor_adc_raw_voltage  // 原始电压 ADC 值
 monitor_adc_raw_current  // 原始电流 ADC 值
 monitor_adc_st           // ADC 状态寄存器
-monitor_adc_timeout_count // ADC 超时计数
-```
-
----
-
-## 8. 工程文件结构
-
-```
-DSP8233x_BUCK/
-├── User/
-│   └── main.c                  // 主程序入口，主控制循环
-├── APP/
-│   ├── adc/
-│   │   ├── adc.c               // ADC 采样驱动（连续模式，200 次平均）
-│   │   └── adc.h
-│   ├── mpcc/
-│   │   ├── mpcc.c              // QP 调用入口（MPC_Controller → qpOASES）
-│   │   └── mpcc.h
-│   ├── pwm/
-│   │   ├── pwm.c               // ePWM1 驱动（100kHz，互补 + 死区）
-│   │   └── pwm.h
-│   └── qp/
-│       ├── qpoases_port.h      // qpOASES C 接口声明
-│       ├── qpoases_port.cpp    // qpOASES C++ 调用实现
-│       ├── *.cpp               // qpOASES 核心源文件（14 个）
-│       └── include/
-│           └── qpOASES/        // qpOASES C++ 头文件
-├── DSP2833x_Libraries/         // TI C2000 外设库
-├── F28335.cmd                  // 链接脚本（Flash + RAM 分配）
-├── MPC_QP求解器验证证明.md      // QP 求解器正确性验证文档
-├── DSP_工程变量说明文档.md      // 本文档
-└── 硬件配置说明.md              // 硬件端口和参数说明
+monitor_adc_timeout_count // ADC 超时计数（应为 0）
 ```

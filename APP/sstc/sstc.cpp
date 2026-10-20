@@ -36,7 +36,7 @@ static int     sstc_inited = 0;
 #define SSTC_ETA_LINI 0.8f   /* 电流 η_i 线性惩罚权重 q_i (论文 q=0.8) */
 
 /* SSTC 开关: 1=启用 SSTC 软约束优化, 0=直接用理想占空比(调试用) */
-#define SSTC_ENABLE  0
+#define SSTC_ENABLE  1
 
 /* η 软约束激活判定阈值: 大于此值视为激活(远大于数值毛刺 1e-4) */
 #define ETA_ACTIVE_TH  0.01f

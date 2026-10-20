@@ -6,12 +6,12 @@
 #include "../APP/pid/pid.h"
 #include <string.h>
 
-#define CTL_MPC   0
+#define CTL_MPC   1
 
 /* PI 周期对齐 MPC: 置 1 时 PI 每拍结束后忙等补齐到 TARGET_CYCLE_US, 使控制周期与 MPC 一致;
    置 0 时立即关闭延迟(恢复快速 PI) */
 #define PI_MATCH_MPC       0
-#define TARGET_CYCLE_US    1370   /* 目标周期(µs), 取 MPC 模式下 monitor_cycle_us 的值 */
+#define TARGET_CYCLE_US    1370   /* 目标周期(µs), 取 MPC 模式下 monitor_control_cycle 的值 */
 
 /* 负载检测去抖: 连续 RL_VOTE_N 拍一致才切换, 切换后锁存 RL_LOCK_M 拍不再检测 */
 #define RL_VOTE_N   2     /* 连续一致拍数 */
@@ -34,7 +34,7 @@ volatile Uint16 system_state = SYSTEM_READY;
 volatile Uint16 control_mode = CONTROL_MODE_CURRENT;
 
 /* === Dual-output targets (matching paper SSTC) === */
-float32 current_target = 1.5f;       /* yt[1] — current tracking */
+float32 current_target = 1.50f;       /* yt[1] — current tracking */
 float32 voltage_target = 20.0f;    /* = current * RL, 切负载时同步更新 */
 
 /* ---- monitor ---- */
@@ -44,13 +44,20 @@ volatile float32 monitor_global_iB         = 0.0f;
 volatile float32 monitor_global_iB_filtered= 0.0f;
 volatile float32 monitor_global_us         = 0.0f;
 volatile Uint32  monitor_cycle_ticks       = 0;       /* 控制周期耗时(150MHz 时钟周期数) */
-volatile float32 monitor_cycle_us          = 0.0f;    /* 控制周期耗时(微秒) */
+volatile float32 monitor_control_cycle     = 0.0f;    /* 控制周期耗时(微秒) */
 volatile Uint32  monitor_cycle_max_ticks   = 0;       /* 最大耗时(观察周期波动) */
 volatile Uint32  monitor_mpcc_ticks        = 0;       /* MPCC 单独耗时(150MHz 时钟周期数) */
-volatile float32 monitor_mpcc_us           = 0.0f;    /* MPCC 单独耗时(微秒) */
+volatile float32 monitor_mpccQP            = 0.0f;    /* MPCC 单独耗时(微秒) */
 extern volatile float32 monitor_mpcc_duty_cycle;
 extern volatile float32 monitor_mpcc_us_ref;
 extern volatile float32 monitor_mpcc_delta_duty;
+
+/* === 数据导出用历史数组 (CCS Memory Browser 导出到 Excel) === */
+#define LOG_N 100
+volatile float32 monitor_mpccQP_hist[LOG_N];          /* MPCC 耗时历史(微秒) */
+volatile float32 monitor_control_cycle_hist[LOG_N];   /* 控制周期历史(微秒) */
+volatile Uint16  log_index = 0;   /* 已记录点数 */
+volatile Uint16  log_full  = 0;   /* =1 表示已存满 100 点 */
 
 /* SSTC 运行时 RL 更新 (sstc.h) */
 extern void SSTC_SetRL(float32 newRL);
@@ -177,7 +184,7 @@ void main(void)
             Uint32 t_mpcc_end = CpuTimer2Regs.TIM.all;     /* MPCC 后读计数 */
             Uint32 mpcc_ticks = t_mpcc_start - t_mpcc_end;
             monitor_mpcc_ticks = mpcc_ticks;
-            monitor_mpcc_us = (float32)mpcc_ticks / 150.0f;
+            monitor_mpccQP = (float32)mpcc_ticks / 150.0f;
         }
 #else
         PID_Controller(target, current_filtered, &duty);
@@ -197,8 +204,16 @@ void main(void)
             Uint32 t_end = CpuTimer2Regs.TIM.all;
             Uint32 ticks = t_start - t_end;    /* 递减计数器差值 */
             monitor_cycle_ticks = ticks;
-            monitor_cycle_us = (float32)ticks / 150.0f;   /* 150MHz: 1µs=150ticks */
+            monitor_control_cycle = (float32)ticks / 150.0f;   /* 150MHz: 1µs=150ticks */
             if (ticks > monitor_cycle_max_ticks) monitor_cycle_max_ticks = ticks;
+        }
+
+        /* 记录到导出数组(各100点), 存满后置 log_full */
+        if (log_index < LOG_N) {
+            monitor_mpccQP_hist[log_index]        = monitor_mpccQP;
+            monitor_control_cycle_hist[log_index] = monitor_control_cycle;
+            log_index++;
+            if (log_index >= LOG_N) log_full = 1;
         }
 
         monitor_system_uptime++;
