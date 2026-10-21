@@ -34,7 +34,7 @@ volatile Uint16 system_state = SYSTEM_READY;
 volatile Uint16 control_mode = CONTROL_MODE_CURRENT;
 
 /* === Dual-output targets (matching paper SSTC) === */
-float32 current_target = 1.50f;       /* yt[1] — current tracking */
+float32 current_target = 2.0f;       /* yt[1] — current tracking */
 float32 voltage_target = 20.0f;    /* = current * RL, 切负载时同步更新 */
 
 /* ---- monitor ---- */
